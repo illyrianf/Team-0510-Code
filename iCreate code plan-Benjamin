@@ -1,0 +1,71 @@
+#include <kipr/wombat.h>
+void open(){
+    //Open the claw
+    set_servo_position(2,2047);
+    msleep(500);
+}
+void close(){
+    //Close the claw
+    set_servo_position(2,0);
+}
+void drive(d1,d2,t){
+    //Drive the iCreate
+    create_drive_direct(d1,d2);
+    msleep(t);
+}
+void con(c){
+    //Start and end conditions
+    if(c==0){
+        create_connect();
+        enable_servos();
+    }
+    if(c==1){
+        create_stop();
+        disable_servos();
+        create_disconnect();
+    }
+}
+void servo(port,pos){
+    set_servo_position(port,pos);
+}
+void grabcube(h)
+    //Grabs cube
+    open()
+    if(h=="short"){
+    	servo(0,1024);  
+    }
+	if(h=="long"){
+        servo(0,300);
+    }
+	close()
+	drive(500,-500,1000);
+int main()
+{
+   	con(0);
+    //Line up straight
+    drive(-500,0,500);
+    //Drive towards the middle
+    drive(500,500,1000);
+    //Turn to line up along the middle
+    drive(-500,500,1000);
+    //Grab cubes and put them into containers
+    grabcube("short");
+    servo(0,2047);
+    open();
+    drive(500,500,500);
+    grabcube("long")
+    servo(0,0);
+    open();
+    grabcube("long")
+    servo(0,0);
+    open();
+    grabcube("short")
+    servo(0,0);
+    open();
+    //Drive to cybersecurity lab
+    drive(500,-500,1000);
+    drive(500,500,2000);
+    //Move backwards
+    drive(-500,-500,500);
+    con(1); 
+}
