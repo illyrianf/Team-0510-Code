@@ -1,0 +1,64 @@
+#include <kipr/wombat.h>
+#define ARM_PORT 2
+#define CLAW_PORT 1
+#define CLAW_RELEASE 1000
+int main()
+{
+    printf("Program is connected!\n");
+    create_connect();
+    printf("iCreate is connected!\n");
+    enable_servos();
+    printf("Servos are connected!\n");
+    //turn left from the bottom
+    create_drive_direct(-200, 200);
+    msleep(950);
+    create_stop();
+    msleep(100);
+    set_servo_position(ARM_PORT, 500);
+    msleep(1000);
+    int counter;
+    for (counter = 500; counter < 1400; counter += 10) {
+    	set_servo_position(ARM_PORT, counter);
+        printf("pos: %d\n", counter);
+    	msleep(20);
+    }
+    set_servo_position(CLAW_PORT, CLAW_RELEASE);
+    msleep(1000);
+    //go forward
+    create_drive_direct(-200, -200);
+    msleep(3300);
+    create_stop();
+    msleep(100);
+    //claw closes to 500 for Botgal (looser for the cubes)
+    set_servo_position(CLAW_PORT, 300);
+    msleep(1500);
+    for (counter = 1400; counter < 2000; counter += 10) {
+    	set_servo_position(ARM_PORT, counter);
+        printf("pos: %d\n", counter);
+    	msleep(20);
+    }
+    //go backward
+    create_drive_direct(200, 200);
+    msleep(3000);
+    create_stop();
+    msleep(100);
+    create_drive_direct(-200, 200);
+    msleep(980);
+    create_stop();
+    msleep(100);
+    create_drive_direct(-200, -200);
+    msleep(1500);
+    create_stop();
+    msleep(100);
+    for (counter = 1600;counter > 300;counter -= 10) {
+    	set_servo_position(ARM_PORT, counter);
+        printf("pos: %d\n", counter);
+    	msleep(15);
+    }
+    msleep(1000);
+    set_servo_position(CLAW_PORT, CLAW_RELEASE);
+    msleep(1000);
+    disable_servos();
+    create_disconnect();
+    return 0;
+}
