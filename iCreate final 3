@@ -1,0 +1,494 @@
+#include <kipr/wombat.h>
+#define FALSE 0
+#define TRUE 1
+#define LEFT 0
+#define RIGHT 1
+#define BLACK 1200
+#define WHITE 2800
+#define CLAW 3
+#define ARM_LEFT 0
+#define ARM_RIGHT 1
+#define HINGE 2
+#define CLOSED_CLAW 1850
+#define OPEN_CLAW 900
+#define DISTANCE_SENSOR_L 0
+#define DISTANCE_SENSOR_R 1
+#define DISTANCE 1800
+#define RUN_MODE 0
+#define CALIBRATE_SENSOR_MODE 1
+#define CALIBRATE_ARM_MODE 2
+#define CALIBRATE_CLAW_MODE 3
+#define CHECK_BATTERY_MODE 4
+#define TEST_MODE 5
+#define PROGRAM_MODE RUN_MODE
+
+void drive_up_until_black() {
+    //Drive until black line
+    int gray = (WHITE + BLACK)/2;
+    int speed = 200;
+    int stop = 0;
+    while(get_create_lcliff_amt() > gray || get_create_rcliff_amt() > gray) {
+        msleep(1);
+        if (get_create_lcliff_amt() > gray && get_create_rcliff_amt() > gray) {
+            // Sensing white on both left and right.
+            create_drive_direct(speed, speed);
+        }
+
+        if (get_create_lcliff_amt() < gray && get_create_rcliff_amt() > gray) {
+            create_drive_direct(stop, speed);
+        }
+        if (get_create_lcliff_amt() > gray && get_create_rcliff_amt() < gray) {
+            create_drive_direct(speed, stop);
+        }
+    }
+    create_drive_direct(0, 0);
+    create_stop();
+    msleep(500);
+}
+
+void drive_up_until_one_black() {
+    //Drive until black line
+    int gray = (WHITE + BLACK)/2;
+    int speed = 200;
+    while(get_create_lcliff_amt() > gray && get_create_rcliff_amt() > gray) {
+        msleep(1);
+        create_drive_direct(speed, speed);
+    }
+    create_drive_direct(0, 0);
+    create_stop();
+    msleep(500);
+}
+
+void spin_turn_180(int direction) {
+    if (direction == RIGHT) {
+        create_drive_direct(200, -200);
+    } else if (direction == LEFT) {
+        create_drive_direct(-200, 200);
+    }
+    msleep(1850);
+    create_stop();
+    msleep(100);
+}
+
+void spin_turn_any(int direction, int degree) {
+    if (direction == RIGHT) {
+        create_drive_direct(200, -200);
+        msleep(degree * 10.5);
+    } else if (direction == LEFT) {
+        create_drive_direct(-200, 200);
+        msleep(degree * 10.85);
+    }
+    create_stop();
+    msleep(100);
+
+}
+
+void spin_turn_90(int direction) {
+    if (direction == RIGHT) {
+        create_drive_direct(200, -200);
+        msleep(945);
+    } else if (direction == LEFT) {
+        create_drive_direct(-200, 200);
+        msleep(930);
+    }
+    create_stop();
+    msleep(100);
+}
+
+void pivot_turn_90(int direction) {
+    if (direction == RIGHT) {
+        create_drive_direct(200, 0);
+    } else if (direction == LEFT) {
+        create_drive_direct(0, 200);
+    }
+    msleep(1800);
+    create_stop();
+    msleep(100);
+}
+
+// Line follow up to desired distance.
+void line_follow(int distance_mm) {
+    int gray = BLACK;
+    int speed = 360;
+    int stop = 117;
+    set_create_distance(0); // Reset distance counting.
+    while(get_create_distance() < distance_mm) {
+        if (get_create_lfcliff_amt() > gray && get_create_rfcliff_amt() > gray) {
+            // Sensing white on both left and right.
+            create_drive_direct(speed, speed);
+        }
+        if (get_create_rfcliff_amt() < gray) {
+            // Sensing black on right.
+            create_drive_direct(speed, stop);
+        }
+        if (get_create_lfcliff_amt() < gray) {
+            // Sensing black on left.
+            create_drive_direct(stop, speed);
+        }
+    }
+    create_stop();
+    msleep(100);
+}
+
+void go_forward_time(int duration_ms) {
+    create_drive_direct(200, 200);
+    msleep(duration_ms);
+    create_stop();
+    msleep(100);
+}
+
+void go_forward_distance(int distance) {
+    int initial_distance = get_create_distance();
+    while(get_create_distance() - initial_distance < distance && get_create_rbump() ==0 && get_create_lbump() == 0) {
+        create_drive_direct(200, 200);
+    }
+    create_stop();
+    //printf("%d\n",get_create_distance());
+    //printf("servo a = %d, b = %d\n", a, b);
+    msleep(100);
+}
+
+void go_backward(int duration_ms) {
+    create_drive_direct(-200, -200);
+    msleep(duration_ms);
+    create_stop();
+    msleep(100);
+}
+
+void go_backward_distance(int distance) {
+    int initial_distance = get_create_distance();
+    while(-1*(get_create_distance() - initial_distance) < distance) {
+        create_drive_direct(-200, -200);
+    }
+    create_stop();
+    msleep(100);
+}
+
+//might need to fine tune
+void open_claw() {
+    set_servo_position(CLAW, OPEN_CLAW);
+    msleep(400);
+}
+
+void open_claw_slow(double pct) {
+    while(get_servo_position(CLAW) > CLOSED_CLAW - (CLOSED_CLAW - OPEN_CLAW) * pct/100) {
+      set_servo_position(CLAW, get_servo_position(CLAW) - 5);
+      //printf("claw:%d\n",get_servo_position(CLAW));
+       msleep(5);
+    }
+    msleep(400);
+}
+
+void close_claw_slow() {
+    int total_iterations = 0;
+    while(get_servo_position(CLAW) < CLOSED_CLAW && total_iterations < 450) {
+      set_servo_position(CLAW, get_servo_position(CLAW) + 5);
+      //printf("claw:%d\n",get_servo_position(CLAW));
+       total_iterations++;
+       msleep(5);
+    }
+    msleep(400);
+}
+
+void close_claw() {
+    set_servo_position(CLAW, CLOSED_CLAW);
+    msleep(400);
+}
+
+void set_arm(int end_angle) {
+  int increment = 2;
+  //printf("arm left = %d, arm right = %d\n", get_servo_position(ARM_LEFT), get_servo_position(ARM_RIGHT));
+  if(get_servo_position(ARM_LEFT) > end_angle) {
+    increment *= -1;
+    while(get_servo_position(ARM_LEFT) > end_angle) {
+   	  set_servo_position(ARM_LEFT, get_servo_position(ARM_LEFT) + increment);
+      set_servo_position(ARM_RIGHT, get_servo_position(ARM_RIGHT) - increment);
+      msleep(1);
+      //printf("arm left = %d, arm right = %d\n", get_servo_position(ARM_LEFT), get_servo_position(ARM_RIGHT));
+    }
+  }
+  else{
+   while(get_servo_position(ARM_LEFT) < end_angle) {
+   	set_servo_position(ARM_LEFT, get_servo_position(ARM_LEFT) + increment);
+    set_servo_position(ARM_RIGHT, get_servo_position(ARM_RIGHT) - increment);
+    msleep(1);
+    //printf("arm left = %d, arm right = %d\n", get_servo_position(ARM_LEFT), get_servo_position(ARM_RIGHT));
+   }
+  }
+} 
+
+void hinge(int move) {
+    int increment = 2;
+  if(get_servo_position(HINGE) > move) {
+    increment *= -1;
+    while(get_servo_position(HINGE) > move) {
+   	  set_servo_position(HINGE, get_servo_position(HINGE) + increment);
+      msleep(1);
+      //printf("arm left = %d, arm right = %d\n", get_servo_position(ARM_LEFT), get_servo_position(ARM_RIGHT));
+    }
+  }
+  else{
+   while(get_servo_position(HINGE) < move) {
+   	set_servo_position(HINGE, get_servo_position(HINGE) + increment);
+    msleep(1);
+    //printf("arm left = %d, arm right = %d\n", get_servo_position(ARM_LEFT), get_servo_position(ARM_RIGHT));
+   }
+  }
+    msleep(400);
+}
+
+void check_arm_alignment() {
+  create_connect();
+  enable_servos();
+  //Servo 1:1508, servo 2:497
+  printf("arm left = %d, arm right = %d\n", get_servo_position(ARM_LEFT), get_servo_position(ARM_RIGHT));
+  set_arm(1300);
+  msleep(1000);
+  set_arm(1508);
+  printf("arm left = %d, arm right = %d\n", get_servo_position(ARM_LEFT), get_servo_position(ARM_RIGHT));
+  disable_servos();
+  create_disconnect();
+} 
+
+void check_claw() {
+  create_connect();
+  enable_servos();
+  open_claw();
+  msleep(1000);
+  close_claw();
+  msleep(500);
+  open_claw_slow(85);
+  msleep(500);
+  close_claw_slow();
+  disable_servos();
+  create_disconnect();
+}
+
+void distance_sensor_drive(int sensor_id) {
+  int i;
+  int initial_distance = get_create_distance();
+  // Runs two times to skip encryption keys.
+  for (i = 0; i < 2; i++){
+    //Runs while seeing something
+    while(analog(sensor_id) > DISTANCE) {
+        create_drive_direct(200, 200);
+        msleep(5);
+        //printf("while loop %d:1 l sensor:%d, r sensor:%d\n", i, analog(DISTANCE_SENSOR_L), analog(DISTANCE_SENSOR_R));
+    }
+    msleep(100);
+    //Runs while not seeing something
+    while(analog(sensor_id) < DISTANCE){
+        create_drive_direct(200, 200);
+        msleep(5);
+        //printf("while loop %d:2 l sensor:%d, r sensor:%d\n", i, analog(DISTANCE_SENSOR_L), analog(DISTANCE_SENSOR_R));
+    }
+  }
+  if(get_create_distance() - initial_distance < 330 || analog(sensor_id)<DISTANCE) {
+    while(analog(sensor_id) < DISTANCE) {
+      create_drive_direct(200,200);
+      msleep(5);
+    }
+  }
+  create_stop();
+}
+
+void calibrate_sensor() {
+  create_connect();
+  while(TRUE){
+    printf("lcliff: %d, rcliff:%d, l sensor:%d, r sensor:%d\n", get_create_lcliff_amt(), get_create_rcliff_amt(), analog(DISTANCE_SENSOR_L), analog(DISTANCE_SENSOR_R));
+    msleep(1000);
+  }
+  create_disconnect();
+}
+
+void run() {
+  create_connect();
+  enable_servos();
+  hinge(5);
+  set_arm(1000);
+  //Goes forward until wall
+  close_claw();
+  go_forward_distance(50);
+  spin_turn_any(RIGHT,20);
+  go_forward_distance(400);
+  spin_turn_any(LEFT,20);
+  go_forward_distance(500);
+  go_backward_distance(60);
+  //Drives until center black line
+  open_claw();
+  spin_turn_90(RIGHT);
+  set_arm(1700);
+  hinge(1000);
+  drive_up_until_one_black();
+  hinge(2000);
+  go_forward_distance(40);
+  spin_turn_90(RIGHT);
+  go_backward(1200);
+  //Picks up botgal
+  go_forward_distance(20);
+  open_claw();
+  set_arm(1600);
+  hinge(750);
+  close_claw();
+  hinge(1500);
+  msleep(2500);//Delete this
+  //Drops botgal
+  drive_up_until_black();
+  spin_turn_any(RIGHT,25);
+  set_arm(275);
+  msleep(300);
+  open_claw();
+  msleep(1000);
+  set_arm(800);
+  close_claw();
+  //Goes to first tower
+  spin_turn_any(LEFT,25);
+  go_backward(3500);
+  go_forward_distance(100);
+  spin_turn_90(RIGHT);
+  distance_sensor_drive(DISTANCE_SENSOR_R);
+  go_forward_distance(40);
+  spin_turn_90(LEFT);
+  go_backward(1000);
+  //Picks up first cube
+  go_forward_distance(70);
+  open_claw();
+  set_arm(1800);
+  hinge(860);
+  close_claw();
+  hinge(1900);
+  msleep(500);
+  //Goes toward next cube
+  hinge(2000);
+  go_forward_distance(20);
+  spin_turn_90(RIGHT);
+  distance_sensor_drive(DISTANCE_SENSOR_R);
+  go_forward_distance(40);
+  spin_turn_any(RIGHT,85);
+  go_forward_distance(150);
+  msleep(100);
+  go_backward_distance(35);
+  //Stacks cubes and picks them up
+  //////////////////////////////
+ set_arm(1080);
+  hinge(2040);
+  open_claw_slow(85);
+  msleep(250);
+  set_arm(990);
+  hinge(2046);
+  go_backward_distance(5);
+  close_claw_slow();
+  set_arm(1300);
+  ////////////////////////////////
+  //Drops cubes in square
+  go_backward_distance(70);
+  spin_turn_90(RIGHT);
+  go_forward_distance(5);
+  distance_sensor_drive(DISTANCE_SENSOR_L);
+  go_forward_distance(40);
+  spin_turn_90(RIGHT);
+  go_backward(1300);
+  drive_up_until_black();
+  hinge(1300);
+  set_arm(265);
+  msleep(500);
+  open_claw_slow(70);
+  go_backward(3000);
+  go_forward_distance(100);
+  spin_turn_90(LEFT);
+  drive_up_until_one_black();
+  go_forward_distance(40);
+  msleep(500);
+  distance_sensor_drive(DISTANCE_SENSOR_L);
+  go_forward_distance(40);
+  spin_turn_90(RIGHT);
+  go_backward(1800);
+  go_forward_distance(70);
+  open_claw();
+  set_arm(1800);
+  hinge(860);
+  close_claw();
+  hinge(1900);
+  msleep(500);
+  go_forward_distance(30);
+  spin_turn_90(LEFT);
+  go_forward_distance(30);
+  distance_sensor_drive(DISTANCE_SENSOR_L);
+  go_forward_distance(60);
+  spin_turn_90(LEFT);
+  go_forward_distance(150);
+  msleep(100);
+  go_backward_distance(30);
+  //Stacks cubes and picks them up
+  ///////////////////////
+  set_arm(1080);
+  hinge(2040);
+  open_claw_slow(85);
+  msleep(250);
+  set_arm(990);
+  hinge(2046);
+  go_backward_distance(5);
+  close_claw_slow();
+  set_arm(1300);
+  /////////////////////////
+  go_backward_distance(40);
+  spin_turn_any(LEFT,85);
+  drive_up_until_one_black();
+  go_forward_distance(40);
+  distance_sensor_drive(DISTANCE_SENSOR_R);
+  go_forward_distance(40);
+  spin_turn_any(LEFT,90);
+  go_backward(1800);
+  drive_up_until_black();
+  go_forward_distance(40);
+  set_arm(990);
+  hinge(2040);
+  disable_servos();
+  create_disconnect();
+}
+
+void teststuff() {
+  //create_connect();
+  enable_servos();
+  set_arm(800);
+  open_claw();
+  msleep(500);
+  thread close_claw_thread;
+  close_claw_thread = thread_create(close_claw);
+  thread_start(close_claw_thread);
+  set_arm(1500);
+  thread_wait(close_claw_thread);
+  thread_destroy(close_claw_thread);
+  close_claw_slow();
+  disable_servos();
+  //create_disconnect();
+}
+
+int main() {
+  switch(PROGRAM_MODE) {
+      case RUN_MODE:
+          run();
+          break;
+      case CALIBRATE_SENSOR_MODE:
+          calibrate_sensor();
+          break;
+      case CALIBRATE_ARM_MODE:
+          check_arm_alignment();
+          break;
+      case CALIBRATE_CLAW_MODE:
+          check_claw();
+          break;
+      case TEST_MODE:
+          teststuff();
+          break;
+      case CHECK_BATTERY_MODE:
+          create_connect();
+          printf("battery:%d\n", get_create_battery_capacity());
+          create_disconnect();
+          break;
+      default:
+          printf("Invalid program mode:%d\n", PROGRAM_MODE);
+          break;
+  }
+  return 0;
+}
